@@ -1,30 +1,22 @@
 import { Hono } from "hono";
 import { PGlite } from "@electric-sql/pglite";
-import { drizzle } from "drizzle-orm/pglite";
-import { pgTable, serial, text } from "drizzle-orm/pg-core";
-
-export const messages = pgTable("messages", {
-	id: serial("id").primaryKey(),
-	note: text("note").notNull(),
-	author: text("author").notNull(),
-});
 
 const app = new Hono();
-const client = new PGlite();
+const db = new PGlite();
 
 app.get("/", (c) => {
 	return c.text("Welcome!");
 });
 
 app.get("/list", async (c) => {
-	const db = drizzle(client);
-	const data = await db.select().from(messages);
-	console.log(data);
-	return c.json(data);
+	const ret = await db.query(`
+    SELECT * from messages;
+  `);
+	return c.json(ret.rows);
 });
 
 app.get("/create", async (c) => {
-	await client.exec(`
+	await db.exec(`
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       note TEXT,
@@ -35,11 +27,9 @@ app.get("/create", async (c) => {
 });
 
 app.get("/update", async (c) => {
-	const db = drizzle(client);
-	await db.insert(messages).values({
-		note: "Hello there",
-		author: "Steve",
-	});
+	await db.exec(`
+    INSERT INTO messages (note, author) VALUES ('hello there!', 'steve');
+  `);
 	return c.text("done");
 });
 
