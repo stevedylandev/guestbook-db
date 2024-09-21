@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { PGlite } from "@electric-sql/pglite";
 
 const app = new Hono();
+
 const db = new PGlite("./guestbook");
 
 app.get("/", (c) => {
