@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { PGlite } from "@electric-sql/pglite";
 
 const app = new Hono();
-const db = new PGlite();
+const db = new PGlite("./db");
 
 app.get("/", async (c) => {
 	await db.exec(`
@@ -23,7 +23,7 @@ app.get("/", async (c) => {
 `);
 	console.log(ret.rows);
 
-	return c.text("Hello Hono!");
+	return c.json(ret.rows);
 });
 
 export default app;
