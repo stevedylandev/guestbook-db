@@ -11,9 +11,9 @@ export const messages = pgTable("messages", {
 
 const app = new Hono();
 const client = new PGlite();
-const db = drizzle(client);
 
 app.get("/", async (c) => {
+	const db = drizzle(client);
 	const data = await db.select().from(messages);
 	console.log(data);
 	return c.json(data);
@@ -31,6 +31,7 @@ app.get("/create", async (c) => {
 });
 
 app.get("/update", async (c) => {
+	const db = drizzle(client);
 	await db.insert(messages).values({
 		note: "Hello there",
 		author: "Steve",
