@@ -33,4 +33,11 @@ app.get("/update", async (c) => {
 	return c.text("done");
 });
 
+app.get("/wipe", async (c) => {
+	await db.exec(`
+    DELETE FROM messages
+  `);
+	return c.text("done");
+});
+
 export default app;
