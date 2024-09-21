@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { PGlite } from "@electric-sql/pglite";
 
 const app = new Hono();
-const db = new PGlite();
+const db = new PGlite("./guestbook");
 
 app.get("/", (c) => {
 	return c.text("Welcome!");
@@ -20,7 +20,8 @@ app.get("/create", async (c) => {
     CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       note TEXT,
-      author TEXT
+      author TEXT,
+      user_id TEXT
     )
     `);
 	return c.text("done");
@@ -28,7 +29,7 @@ app.get("/create", async (c) => {
 
 app.get("/update", async (c) => {
 	await db.exec(`
-    INSERT INTO messages (note, author) VALUES ('hello there!', 'steve');
+    INSERT INTO messages (note, author, user_id) VALUES ('hello there!', 'steve', 'f6eabed5-f243-4bf4-8f20-fa3dc4d9c32b');
   `);
 	return c.text("done");
 });
