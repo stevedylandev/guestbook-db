@@ -19,11 +19,17 @@ app.get("/", async (c) => {
    `);
 
 	const ret = await db.query(`
-  SELECT * from todo WHERE id = 1;
+  SELECT * from todo;
 `);
-	console.log(ret.rows);
 
 	return c.json(ret.rows);
+});
+
+app.get("/update", async (c) => {
+	await db.exec(`
+    INSERT INTO todo (task, done) VALUES ('New task from Hono', false);
+  `);
+	return c.text("done");
 });
 
 export default app;
