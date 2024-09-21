@@ -1,37 +1,40 @@
 import { Hono } from "hono";
 import { PGlite } from "@electric-sql/pglite";
+import { drizzle } from "drizzle-orm/pglite";
+import { pgTable, serial, text } from "drizzle-orm/pg-core";
+
+export const messages = pgTable("messages", {
+	id: serial("id").primaryKey(),
+	note: text("note").notNull(),
+	author: text("author").notNull(),
+});
 
 const app = new Hono();
-const db = new PGlite();
+const client = new PGlite();
+const db = drizzle(client);
 
 app.get("/", async (c) => {
-	const ret = await db.query(`
-  SELECT * from todo;
-`);
-
-	return c.json(ret.rows);
+	const data = await db.select().from(messages);
+	console.log(data);
+	return c.json(data);
 });
 
 app.get("/create", async (c) => {
-	await db.exec(`
-      CREATE TABLE IF NOT EXISTS todo (
-        id SERIAL PRIMARY KEY,
-        task TEXT,
-        done BOOLEAN DEFAULT false
-      );
-      INSERT INTO todo (task, done) VALUES ('Install PGlite from NPM', true);
-      INSERT INTO todo (task, done) VALUES ('Load PGlite', true);
-      INSERT INTO todo (task, done) VALUES ('Create a table', true);
-      INSERT INTO todo (task, done) VALUES ('Insert some data', true);
-      INSERT INTO todo (task) VALUES ('Update a task');
+	await client.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      note TEXT,
+      author TEXT
+    )
     `);
 	return c.text("done");
 });
 
 app.get("/update", async (c) => {
-	await db.exec(`
-    INSERT INTO todo (task, done) VALUES ('New task from Hono', false);
-  `);
+	await db.insert(messages).values({
+		note: "Hello there",
+		author: "Steve",
+	});
 	return c.text("done");
 });
 
