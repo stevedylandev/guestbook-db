@@ -12,7 +12,11 @@ export const messages = pgTable("messages", {
 const app = new Hono();
 const client = new PGlite();
 
-app.get("/", async (c) => {
+app.get("/", (c) => {
+	return c.text("Welcome!");
+});
+
+app.get("/list", async (c) => {
 	const db = drizzle(client);
 	const data = await db.select().from(messages);
 	console.log(data);
