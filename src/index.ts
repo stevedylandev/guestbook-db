@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { PGlite } from "@electric-sql/pglite";
 
 const app = new Hono();
-const db = new PGlite("./db");
+const db = new PGlite();
 
 app.get("/", async (c) => {
 	await db.exec(`
