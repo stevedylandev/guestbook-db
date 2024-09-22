@@ -15,6 +15,7 @@ interface Message {
 	note: string;
 	author: string;
 	user_id: string;
+	user_name: string;
 }
 
 app.get("/", (c) => {
@@ -55,8 +56,8 @@ app.post("/messages", async (c) => {
 	try {
 		if (db && auth) {
 			const res = await db.query(
-				"INSERT INTO messages (note, author, user_id, pfp_url) VALUES ($1, $2, $3, $4)",
-				[body.note, user.firstName, auth?.userId, user.imageUrl],
+				"INSERT INTO messages (note, author, user_id, pfp_url, username) VALUES ($1, $2, $3, $4, $5)",
+				[body.note, user.firstName, auth?.userId, user.imageUrl, user.username],
 			);
 
 			return c.json(res.rows);
@@ -149,7 +150,8 @@ app.post("/restore", async (c) => {
         note TEXT,
         author TEXT,
         user_id TEXT,
-        pfp_url TEXT
+        pfp_url TEXT,
+        username TEXT
       );
     `);
 		return c.text("New DB created");
