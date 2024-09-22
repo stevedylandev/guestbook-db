@@ -1,10 +1,13 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { PGlite } from "@electric-sql/pglite";
-import * as Joi from "joi";
 import { pinata } from "./pinata";
 import { Cron } from "croner";
+import { clerkMiddleware, getAuth } from "@hono/clerk-auth";
 
 const app = new Hono();
+app.use("/*", cors());
+app.use("*", clerkMiddleware());
 
 let db: PGlite | null;
 
@@ -14,12 +17,6 @@ interface Message {
 	user_id: string;
 }
 
-const messageSchema = Joi.object({
-	note: Joi.string().required().max(1000),
-	author: Joi.string().required().max(100),
-	user_id: Joi.string().required().max(50),
-});
-
 app.get("/", (c) => {
 	return c.text("Welcome!");
 });
@@ -27,7 +24,7 @@ app.get("/", (c) => {
 app.get("/messages", async (c) => {
 	if (db) {
 		const ret = await db.query(`
-    SELECT * from messages;
+		SELECT * FROM messages ORDER BY id DESC LIMIT 50;
   `);
 		return c.json(ret.rows);
 	}
@@ -37,16 +34,29 @@ app.get("/messages", async (c) => {
 app.post("/messages", async (c) => {
 	const body = (await c.req.json()) as Message;
 
-	const { error, value } = messageSchema.validate(body);
-	if (error) {
-		return c.json({ error: error.details[0].message }, 400);
+	const auth = getAuth(c);
+	const clerkClient = c.get("clerk");
+
+	if (!auth?.userId) {
+		return c.json(
+			{
+				message: "You are not logged in.",
+			},
+			401,
+		);
 	}
 
+	if (!body.note || typeof body.note !== "string") {
+		return c.json({ error: "Invalid note" }, 400);
+	}
+
+	const user = await clerkClient.users.getUser(auth?.userId);
+
 	try {
-		if (db) {
+		if (db && auth) {
 			const res = await db.query(
-				"INSERT INTO messages (note, author, user_id) VALUES ($1, $2, $3)",
-				[body.note, body.author, body.user_id],
+				"INSERT INTO messages (note, author, user_id, pfp_url) VALUES ($1, $2, $3, $4)",
+				[body.note, user.firstName, auth?.userId, user.imageUrl],
 			);
 
 			return c.json(res.rows);
@@ -60,6 +70,17 @@ app.post("/messages", async (c) => {
 app.put("/messages/:id", async (c) => {
 	const id = c.req.param("id");
 	const body = await c.req.json();
+
+	const auth = getAuth(c);
+
+	if (!auth?.userId) {
+		return c.json(
+			{
+				message: "You are not logged in.",
+			},
+			401,
+		);
+	}
 
 	if (!body.note || typeof body.note !== "string") {
 		return c.json({ error: "Invalid note" }, 400);
@@ -85,6 +106,17 @@ app.put("/messages/:id", async (c) => {
 
 app.delete("/messages/:id", async (c) => {
 	const id = c.req.param("id");
+	const auth = getAuth(c);
+
+	if (!auth?.userId) {
+		return c.json(
+			{
+				message: "You are not logged in.",
+			},
+			401,
+		);
+	}
+
 	try {
 		if (db) {
 			const res = await db.query("DELETE FROM messages WHERE id = $1", [id]);
@@ -111,8 +143,16 @@ app.post("/restore", async (c) => {
 		return c.text("Ok");
 	} catch (error) {
 		db = new PGlite("./guestbook");
-		console.error("Error restoring database:", error);
-		return c.json({ error: "Failed to restore database" }, 500);
+		await db.exec(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        note TEXT,
+        author TEXT,
+        user_id TEXT,
+        pfp_url TEXT
+      );
+    `);
+		return c.text("New DB created");
 	}
 });
 
@@ -142,7 +182,18 @@ const job = Cron("0 0 * * *", async () => {
 	}
 });
 
-app.get("/wipe", async (c) => {
+app.delete("/wipe", async (c) => {
+	const auth = getAuth(c);
+
+	if (!auth?.userId) {
+		return c.json(
+			{
+				message: "You are not logged in.",
+			},
+			401,
+		);
+	}
+
 	if (db) {
 		await db.exec(`
     DELETE FROM messages
