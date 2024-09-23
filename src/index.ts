@@ -193,24 +193,4 @@ const job = Cron("0 0 * * *", async () => {
 	}
 });
 
-app.delete("/wipe", async (c) => {
-	const auth = getAuth(c);
-
-	if (!auth?.userId) {
-		return c.json(
-			{
-				message: "You are not logged in.",
-			},
-			401,
-		);
-	}
-
-	if (db) {
-		await db.exec(`
-    DELETE FROM messages
-  `);
-		return c.text("done");
-	}
-});
-
 export default app;
