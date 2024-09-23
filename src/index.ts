@@ -18,11 +18,15 @@ interface Message {
 	user_name: string;
 }
 
+interface MessageRow {
+	user_id: string;
+}
+
 async function initDb(): Promise<string> {
 	try {
 		const files = await pinata.files
 			.list()
-			.group(process.env.GROUP_ID!)
+			.group(process.env.GROUP_ID ?? "")
 			.order("DESC");
 		if (files.files) {
 			const dbFile = await pinata.gateways.get(files.files[0].cid);
@@ -123,7 +127,26 @@ app.delete("/messages/:id", async (c) => {
 
 	try {
 		if (db) {
+			const checkQuery = await db.query<MessageRow>(
+				"SELECT user_id FROM messages WHERE id = $1",
+				[id],
+			);
+
+			if (checkQuery.rows.length === 0) {
+				return c.json({ error: "Message not found" }, 404);
+			}
+
+			const messageUserId = checkQuery.rows[0].user_id;
+
+			if (admin !== process.env.ADMIN_KEY && auth?.userId !== messageUserId) {
+				return c.json(
+					{ error: "You are not authorized to delete this message" },
+					403,
+				);
+			}
+
 			const res = await db.query("DELETE FROM messages WHERE id = $1", [id]);
+
 			if (res.affectedRows === 0) {
 				return c.json({ error: "Message not found" }, 404);
 			}
@@ -173,7 +196,7 @@ app.post("/backup", async (c) => {
 			const dbFile = (await db.dumpDataDir("auto")) as File;
 			const upload = await pinata.upload
 				.file(dbFile)
-				.group(process.env.GROUP_ID!);
+				.group(process.env.GROUP_ID ?? "");
 			console.log(upload);
 			return c.json(upload);
 		}
@@ -188,7 +211,7 @@ const job = Cron("0 0 * * *", async () => {
 		const dbFile = (await db.dumpDataDir("auto")) as File;
 		const upload = await pinata.upload
 			.file(dbFile)
-			.group(process.env.GROUP_ID!);
+			.group(process.env.GROUP_ID ?? "");
 		console.log(upload);
 	}
 });
