@@ -18,6 +18,45 @@ interface Message {
 	user_name: string;
 }
 
+async function initDb(): Promise<string> {
+	try {
+		const files = await pinata.files
+			.list()
+			.group(process.env.GROUP_ID!)
+			.order("DESC");
+		if (files.files) {
+			const dbFile = await pinata.gateways.get(files.files[0].cid);
+			const file = dbFile.data as Blob;
+			db = new PGlite({ loadDataDir: file });
+			return files.files[0].created_at;
+		}
+		db = new PGlite("./guestbook");
+		await db.exec(`
+       CREATE TABLE IF NOT EXISTS messages (
+         id SERIAL PRIMARY KEY,
+         note TEXT,
+         author TEXT,
+         user_id TEXT,
+         pfp_url TEXT,
+         username TEXT
+       );
+     `);
+		return "New DB Created";
+	} catch (error) {
+		console.log(error);
+		throw error;
+	}
+}
+
+(async function () {
+	try {
+		const status = await initDb();
+		console.log("Database initialized. Snapshot:", status);
+	} catch (error) {
+		console.log("Failed to initialize database:", error);
+	}
+})();
+
 app.get("/", (c) => {
 	return c.text("Welcome!");
 });
@@ -68,43 +107,6 @@ app.post("/messages", async (c) => {
 	}
 });
 
-app.put("/messages/:id", async (c) => {
-	const id = c.req.param("id");
-	const body = await c.req.json();
-
-	const auth = getAuth(c);
-
-	if (!auth?.userId) {
-		return c.json(
-			{
-				message: "You are not logged in.",
-			},
-			401,
-		);
-	}
-
-	if (!body.note || typeof body.note !== "string") {
-		return c.json({ error: "Invalid note" }, 400);
-	}
-
-	try {
-		if (db) {
-			const res = await db.query(
-				"UPDATE messages SET note = $1 WHERE id = $2 RETURNING *",
-				[body.note, id],
-			);
-
-			if (res.rows.length === 0) {
-				return c.json({ error: "Message not found" }, 404);
-			}
-			return c.json(res.rows);
-		}
-	} catch (error) {
-		console.error("Error updating message:", error);
-		return c.json({ error: "Failed to update message" }, 500);
-	}
-});
-
 app.delete("/messages/:id", async (c) => {
 	const id = c.req.param("id");
 	const auth = getAuth(c);
@@ -134,32 +136,38 @@ app.delete("/messages/:id", async (c) => {
 });
 
 app.post("/restore", async (c) => {
+	const admin = c.req.header("Authorization");
+
+	if (admin !== process.env.ADMIN_KEY) {
+		return c.json(
+			{
+				message: "You are not logged in.",
+			},
+			401,
+		);
+	}
+
 	try {
-		const files = await pinata.files
-			.list()
-			.group(process.env.GROUP_ID!)
-			.order("DESC");
-		const dbFile = await pinata.gateways.get(files.files[0].cid);
-		const file = dbFile.data as Blob;
-		db = new PGlite({ loadDataDir: file });
+		await initDb();
 		return c.text("Ok");
 	} catch (error) {
-		db = new PGlite("./guestbook");
-		await db.exec(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id SERIAL PRIMARY KEY,
-        note TEXT,
-        author TEXT,
-        user_id TEXT,
-        pfp_url TEXT,
-        username TEXT
-      );
-    `);
-		return c.text("New DB created");
+		console.error("Error restoring database:", error);
+		return c.json({ error: "Failed to restore database." }, 500);
 	}
 });
 
 app.post("/backup", async (c) => {
+	const admin = c.req.header("Authorization");
+
+	if (admin !== process.env.ADMIN_KEY) {
+		return c.json(
+			{
+				message: "You are not logged in.",
+			},
+			401,
+		);
+	}
+
 	try {
 		if (db) {
 			const dbFile = (await db.dumpDataDir("auto")) as File;
