@@ -48,7 +48,7 @@ async function initDb(): Promise<string> {
 	}
 }
 
-(async function () {
+(async () => {
 	try {
 		const status = await initDb();
 		console.log("Database initialized. Snapshot:", status);
