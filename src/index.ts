@@ -108,8 +108,9 @@ app.put("/messages/:id", async (c) => {
 app.delete("/messages/:id", async (c) => {
 	const id = c.req.param("id");
 	const auth = getAuth(c);
+	const admin = c.req.header("Authorization");
 
-	if (!auth?.userId) {
+	if (!auth?.userId && admin !== process.env.ADMIN_KEY) {
 		return c.json(
 			{
 				message: "You are not logged in.",
